@@ -76,7 +76,7 @@ void fetch(CPU *cpu)
     }
 
     if (has_imm) {
-        cpu->valC = read_mem(cpu, pc + 2, 8);
+        cpu->valC = read_mem(cpu, pc + size - 8, 8);
         if (cpu->stat != AOK)
             return;
     }
