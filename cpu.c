@@ -3,17 +3,19 @@
 /* 每个阶段通过 CPU 结构体中的暂存值传递数据。请补全以下六个阶段。 */
 void fetch(CPU *cpu)
 {
-    uint64_t pc = cpu->pc; 
-    uint64_t byte0 = read_mem(cpu, cpu->pc, 1);
-    if (cpu->stat != AOK) return;
+    uint64_t pc = cpu->pc;
+    uint64_t byte0 = read_mem(cpu, pc, 1);
+    if (cpu->stat != AOK)
+        return;
+
     cpu->icode = (int)(byte0 >> 4);
-    cpu->ifun = (int)(byte0 & 15);
-    cpu->rA = RNONE;               
+    cpu->ifun  = (int)(byte0 & 0x0f);
+    cpu->rA = RNONE;
     cpu->rB = RNONE;
 
-    unsigned size = 1;            
-    int has_regs = 0;             
-    int has_imm  = 0;              
+    unsigned size = 1;
+    int has_regs = 0;
+    int has_imm  = 0;
 
     switch (cpu->icode) {
     case I_HALT:
@@ -21,14 +23,14 @@ void fetch(CPU *cpu)
         if (cpu->ifun != 0) { cpu->stat = INS; return; }
         break;
 
-    case I_RRMOVQ:                
-    case I_ALU:                    
+    case I_RRMOVQ:
+    case I_ALU:
         if (cpu->ifun > 6) { cpu->stat = INS; return; }
         size = 2;
         has_regs = 1;
         break;
 
-    case I_JMP:                    
+    case I_JMP:
         if (cpu->ifun > 6) { cpu->stat = INS; return; }
         size = 9;
         has_imm = 1;
@@ -43,14 +45,14 @@ void fetch(CPU *cpu)
         has_imm = 1;
         break;
 
-    case I_PUSHQ:                  
-    case I_POPQ:                   
+    case I_PUSHQ:
+    case I_POPQ:
         if (cpu->ifun != 0) { cpu->stat = INS; return; }
         size = 2;
         has_regs = 1;
         break;
 
-    case I_CALL:                   
+    case I_CALL:
         if (cpu->ifun != 0) { cpu->stat = INS; return; }
         size = 9;
         has_imm = 1;
@@ -60,7 +62,7 @@ void fetch(CPU *cpu)
         if (cpu->ifun != 0) { cpu->stat = INS; return; }
         break;
 
-    default:                       
+    default:
         cpu->stat = INS;
         return;
     }
@@ -81,10 +83,8 @@ void fetch(CPU *cpu)
 
     cpu->valP = pc + size;
 
-    if (cpu->icode == I_HALT)      
+    if (cpu->icode == I_HALT)
         cpu->stat = HLT;
-    /* TODO: 校验指令和寄存器编码，处理 halt，读取寄存器字节和立即数，计算 valP。
-       完成实现后删除下面的占位状态。 */
 }
 
 void decode(CPU *cpu)
@@ -119,5 +119,5 @@ void write_back(CPU *cpu)
 void update_pc(CPU *cpu)
 {
     /* TODO: 按 call、条件跳转、ret 或顺序执行选择下一条指令的地址。 */
-    (void)cpu;
+    cpu->pc = cpu->valP;
 }
