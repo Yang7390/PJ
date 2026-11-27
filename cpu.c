@@ -7,10 +7,83 @@ void fetch(CPU *cpu)
     if (cpu->stat != AOK) return;
     cpu->icode = (int)(byte0 >> 4);
     cpu->ifun = (int)(byte0 & 15);
+    cpu->rA = RNONE;               
+    cpu->rB = RNONE;
 
+    unsigned size = 1;            
+    int has_regs = 0;             
+    int has_imm  = 0;              
+
+    switch (cpu->icode) {
+    case I_HALT:
+    case I_NOP:
+        if (cpu->ifun != 0) { cpu->stat = INS; return; }
+        break;
+
+    case I_RRMOVQ:                
+    case I_ALU:                    
+        if (cpu->ifun > 6) { cpu->stat = INS; return; }
+        size = 2;
+        has_regs = 1;
+        break;
+
+    case I_JMP:                    
+        if (cpu->ifun > 6) { cpu->stat = INS; return; }
+        size = 9;
+        has_imm = 1;
+        break;
+
+    case I_IRMOVQ:
+    case I_RMMOVQ:
+    case I_MRMOVQ:
+        if (cpu->ifun != 0) { cpu->stat = INS; return; }
+        size = 10;
+        has_regs = 1;
+        has_imm = 1;
+        break;
+
+    case I_PUSHQ:                  
+    case I_POPQ:                   
+        if (cpu->ifun != 0) { cpu->stat = INS; return; }
+        size = 2;
+        has_regs = 1;
+        break;
+
+    case I_CALL:                   
+        if (cpu->ifun != 0) { cpu->stat = INS; return; }
+        size = 9;
+        has_imm = 1;
+        break;
+
+    case I_RET:
+        if (cpu->ifun != 0) { cpu->stat = INS; return; }
+        break;
+
+    default:                       
+        cpu->stat = INS;
+        return;
+    }
+
+    if (has_regs) {
+        uint64_t regs = read_mem(cpu, pc + 1, 1);
+        if (cpu->stat != AOK)
+            return;
+        cpu->rA = (int)(regs >> 4);
+        cpu->rB = (int)(regs & 0x0f);
+    }
+
+    if (has_imm) {
+        cpu->valC = read_mem(cpu, pc + 2, 8);
+        if (cpu->stat != AOK)
+            return;
+    }
+
+    cpu->valP = pc + size;
+
+    if (cpu->icode == I_HALT)      
+        cpu->stat = HLT;
     /* TODO: 校验指令和寄存器编码，处理 halt，读取寄存器字节和立即数，计算 valP。
        完成实现后删除下面的占位状态。 */
-    cpu->stat = INS;
 }
 
 void decode(CPU *cpu)
