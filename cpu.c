@@ -125,28 +125,158 @@ void decode(CPU *cpu)
 
 void execute(CPU *cpu)
 {
-    /* TODO: 选择 ALU 操作数并计算 valE。OPq 更新 ZF、SF、OF。
-       条件传送和跳转使用 check_cond 计算 cnd。使用无符号运算实现 64 位回绕。 */
     cpu->valE = 0;
     cpu->cnd = 0;
+
+    switch (cpu->icode) {
+    case I_RRMOVQ:
+        cpu->valE = cpu->valA;
+        cpu->cnd = check_cond(cpu, cpu->ifun);
+        break;
+
+    case I_IRMOVQ:
+        cpu->valE = cpu->valC;
+        break;
+
+    case I_RMMOVQ:
+    case I_MRMOVQ:
+        cpu->valE = cpu->valB + cpu->valC;
+        break;
+
+    case I_ALU: {
+        uint64_t a = cpu->valA;
+        uint64_t b = cpu->valB;
+        uint64_t r = 0;
+
+        switch (cpu->ifun) {
+        case 0: r = b + a; break;
+        case 1: r = b - a; break;
+        case 2: r = b & a; break;
+        case 3: r = b ^ a; break;
+        default: cpu->stat = INS; return;
+        }
+
+        cpu->valE = r;
+        cpu->zf = (r == 0);
+        cpu->sf = (int)(r >> 63);
+
+        if (cpu->ifun == 0)
+            cpu->of = (int)((~(b ^ a) & (b ^ r)) >> 63);
+        else if (cpu->ifun == 1)
+            cpu->of = (int)(((b ^ a) & (b ^ r)) >> 63);
+        else
+            cpu->of = 0;
+        break;
+    }
+
+    case I_JMP:
+        cpu->cnd = check_cond(cpu, cpu->ifun);
+        break;
+
+    case I_PUSHQ:
+    case I_CALL:
+        cpu->valE = cpu->valB - 8;
+        break;
+
+    case I_POPQ:
+    case I_RET:
+        cpu->valE = cpu->valB + 8;
+        break;
+
+    default:
+        break;
+    }
 }
 
 void memory_stage(CPU *cpu)
 {
-    /* TODO: 根据指令访问内存。pushq 写入 valA，call 写入 valP。
-       读取操作将结果写入 valM，使用 read_mem 和 write_mem 检查地址。 */
     cpu->valM = 0;
+
+    switch (cpu->icode) {
+    case I_RMMOVQ:
+        write_mem(cpu, cpu->valE, 8, cpu->valA);
+        break;
+
+    case I_PUSHQ:
+        write_mem(cpu, cpu->valE, 8, cpu->valA);
+        break;
+
+    case I_CALL:
+        write_mem(cpu, cpu->valE, 8, cpu->valP);
+        break;
+
+    case I_MRMOVQ:
+        cpu->valM = read_mem(cpu, cpu->valE, 8);
+        break;
+
+    case I_POPQ:
+    case I_RET:
+        cpu->valM = read_mem(cpu, cpu->valA, 8);
+        break;
+
+    default:
+        break;
+    }
 }
 
 void write_back(CPU *cpu)
 {
-    /* TODO: 选择 dstE、dstM 并写入寄存器。
-       若两者均为 RSP，valM 应覆盖 valE。 */
-    (void)cpu;
+    int dstE = RNONE;
+    int dstM = RNONE;
+
+    switch (cpu->icode) {
+    case I_RRMOVQ:
+        if (cpu->cnd)
+            dstE = cpu->rB;
+        break;
+
+    case I_IRMOVQ:
+    case I_ALU:
+        dstE = cpu->rB;
+        break;
+
+    case I_MRMOVQ:
+        dstM = cpu->rA;
+        break;
+
+    case I_PUSHQ:
+    case I_CALL:
+    case I_RET:
+        dstE = RSP;
+        break;
+
+    case I_POPQ:
+        dstE = RSP;
+        dstM = cpu->rA;
+        break;
+
+    default:
+        break;
+    }
+
+    if (dstE != RNONE)
+        cpu->reg[dstE] = cpu->valE;
+    if (dstM != RNONE)
+        cpu->reg[dstM] = cpu->valM;
 }
 
 void update_pc(CPU *cpu)
 {
-    /* TODO: 按 call、条件跳转、ret 或顺序执行选择下一条指令的地址。 */
-    cpu->pc = cpu->valP;
+    switch (cpu->icode) {
+    case I_JMP:
+        cpu->pc = cpu->cnd ? cpu->valC : cpu->valP;
+        break;
+
+    case I_CALL:
+        cpu->pc = cpu->valC;
+        break;
+
+    case I_RET:
+        cpu->pc = cpu->valM;
+        break;
+
+    default:
+        cpu->pc = cpu->valP;
+        break;
+    }
 }
