@@ -89,9 +89,38 @@ void fetch(CPU *cpu)
 
 void decode(CPU *cpu)
 {
-    /* TODO: 根据指令选择源寄存器，将读取的值写入 valA 和 valB。
-       栈操作隐式使用 RSP，RNONE 对应的值为 0。 */
-    (void)cpu;
+    cpu->valA = 0;
+    cpu->valB = 0;
+
+    switch (cpu->icode) {
+    case I_RRMOVQ:
+    case I_ALU:
+    case I_RMMOVQ:
+        cpu->valA = cpu->reg[cpu->rA];
+        break;
+
+    case I_MRMOVQ:
+        cpu->valB = cpu->reg[cpu->rB];
+        break;
+
+    case I_PUSHQ:
+        cpu->valA = cpu->reg[cpu->rA];   
+        cpu->valB = cpu->reg[RSP];     
+        break;
+
+    case I_POPQ:
+    case I_RET:
+        cpu->valA = cpu->reg[RSP];      
+        cpu->valB = cpu->reg[RSP];
+        break;
+
+    case I_CALL:
+        cpu->valB = cpu->reg[RSP];       
+        break;
+
+    default:
+        break;
+    }
 }
 
 void execute(CPU *cpu)
