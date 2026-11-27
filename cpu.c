@@ -3,6 +3,7 @@
 /* 每个阶段通过 CPU 结构体中的暂存值传递数据。请补全以下六个阶段。 */
 void fetch(CPU *cpu)
 {
+    uint64_t pc = cpu->pc; 
     uint64_t byte0 = read_mem(cpu, cpu->pc, 1);
     if (cpu->stat != AOK) return;
     cpu->icode = (int)(byte0 >> 4);
