@@ -1,6 +1,6 @@
 #include "cpu_common.h"
 
-/* 每个阶段通过 CPU 结构体中的暂存值传递数据。请补全以下六个阶段。 */
+/* ================= 取指 ================= */
 void fetch(CPU *cpu)
 {
     uint64_t pc = cpu->pc;
@@ -76,6 +76,7 @@ void fetch(CPU *cpu)
     }
 
     if (has_imm) {
+        /* 立即数 / 偏移 / 跳转目标永远是指令的最后 8 字节 */
         cpu->valC = read_mem(cpu, pc + size - 8, 8);
         if (cpu->stat != AOK)
             return;
@@ -87,35 +88,40 @@ void fetch(CPU *cpu)
         cpu->stat = HLT;
 }
 
+/* ================= 译码 ================= */
 void decode(CPU *cpu)
 {
     cpu->valA = 0;
     cpu->valB = 0;
 
     switch (cpu->icode) {
-    case I_RRMOVQ:
-    case I_ALU:
-    case I_RMMOVQ:
+    case I_RRMOVQ:                      
         cpu->valA = cpu->reg[cpu->rA];
         break;
 
-    case I_MRMOVQ:
+    case I_ALU:                        
+    case I_RMMOVQ:                      
+        cpu->valA = cpu->reg[cpu->rA];
+        cpu->valB = cpu->reg[cpu->rB];
+        break;
+
+    case I_MRMOVQ:                      
         cpu->valB = cpu->reg[cpu->rB];
         break;
 
     case I_PUSHQ:
-        cpu->valA = cpu->reg[cpu->rA];   
-        cpu->valB = cpu->reg[RSP];     
+        cpu->valA = cpu->reg[cpu->rA];
+        cpu->valB = cpu->reg[RSP];
         break;
 
     case I_POPQ:
     case I_RET:
-        cpu->valA = cpu->reg[RSP];      
+        cpu->valA = cpu->reg[RSP];
         cpu->valB = cpu->reg[RSP];
         break;
 
     case I_CALL:
-        cpu->valB = cpu->reg[RSP];       
+        cpu->valB = cpu->reg[RSP];
         break;
 
     default:
@@ -123,6 +129,7 @@ void decode(CPU *cpu)
     }
 }
 
+/* ================= 执行 ================= */
 void execute(CPU *cpu)
 {
     cpu->valE = 0;
@@ -149,10 +156,10 @@ void execute(CPU *cpu)
         uint64_t r = 0;
 
         switch (cpu->ifun) {
-        case 0: r = b + a; break;
-        case 1: r = b - a; break;
-        case 2: r = b & a; break;
-        case 3: r = b ^ a; break;
+        case 0: r = b + a; break;       /* addq */
+        case 1: r = b - a; break;       /* subq */
+        case 2: r = b & a; break;       /* andq */
+        case 3: r = b ^ a; break;       /* xorq */
         default: cpu->stat = INS; return;
         }
 
@@ -188,6 +195,7 @@ void execute(CPU *cpu)
     }
 }
 
+/* ================= 访存 ================= */
 void memory_stage(CPU *cpu)
 {
     cpu->valM = 0;
@@ -211,7 +219,7 @@ void memory_stage(CPU *cpu)
 
     case I_POPQ:
     case I_RET:
-        cpu->valM = read_mem(cpu, cpu->valA, 8);
+        cpu->valM = read_mem(cpu, cpu->valA, 8); 
         break;
 
     default:
@@ -219,6 +227,7 @@ void memory_stage(CPU *cpu)
     }
 }
 
+/* ================= 写回 ================= */
 void write_back(CPU *cpu)
 {
     int dstE = RNONE;
@@ -260,6 +269,7 @@ void write_back(CPU *cpu)
         cpu->reg[dstM] = cpu->valM;
 }
 
+/* ================= 更新 PC ================= */
 void update_pc(CPU *cpu)
 {
     switch (cpu->icode) {
